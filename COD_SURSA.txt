@@ -1,0 +1,1963 @@
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
+#include <math.h>
+#include <stdio.h>
+#include <fstream>
+#include <graphics.h>
+#include <winbgim.h>
+using namespace std;
+ifstream f("formule.txt");
+ofstream g("deriv.txt");
+char oper[] = "+-*/^";
+struct Vector
+{
+    char info[250][30];
+    int nr;
+} vec[256];
+struct arbore
+{
+    char inf[10];
+    arbore* dr;
+    arbore* stg;
+};
+arbore* arb, * arb_d;
+char expr[256], aux[256],expr_derivata[500];
+char c[256], expr_arbore[50],expr_arbore2[50],expr_arbore3[50],formula[256];
+int stanga,sus,width,height,latura, numar,latimea,dreapta,lungimea;
+//ordine si nr paranteze
+int paranteze() //Antonie
+{
+    int ns = 0, nd = 0, l, i, p, ok = 0, u;
+    l = strlen(expr);
+    for (i = 0; i < l; i++)
+    {
+
+        if (expr[i] == '(')
+            ns++;
+        if (expr[i] == ')')
+            nd++;
+        if (ok == 0 && (expr[i] == '(' || expr[i] == ')'))
+        {
+            p = i;
+            ok = 1;
+        }
+        else if (expr[i] == '(' || expr[i] == ')')
+            u = i;
+    }
+    if (ns != nd) return 0;
+    if (expr[p] == ')') return 0;
+    if (expr[u] == '(') return 0;
+    for (i = 1; i < l; i++)
+    {
+        if (expr[i - 1] == '(')
+        {
+            if (expr[i] == '^' || expr[i] == '+' || expr[i] == '/' || expr[i] == '*' || expr[i] == ')' || expr[i] == ',')
+                return 0;
+        }
+        if (expr[i] == ')')
+        {
+            if (expr[i - 1] == '^' || expr[i - 1] == '+' || expr[i - 1] == '/'||  expr[i - 1] == '*'||   expr[i - 1] == ',' || expr[i - 1] == '-' || expr[i - 1] == '(')
+                return 0;
+        }
+    }
+    return 1;
+
+}
+// aperatorii sa fie pusi corect
+int operatori() //Antonie
+{
+    int i, l;
+    l = strlen(expr);
+    if (expr[0] == '+' || expr[0] == '*' || expr[0] == '/') return 0;
+    if (expr[l - 1] == '+' || expr[l - 1] == '-' || expr[l - 1] == '*' || expr[l - 1] == '/') return 0;
+    for (i = 0; i < l - 1; i++)
+    {
+        if (expr[i] == '+')
+            if (expr[i + 1] == '+' || expr[i + 1] == '/' || expr[i + 1] == '*' || expr[i + 1] == '-' || expr[i + 1] == '^')
+                return 0;
+        if (expr[i] == '-')
+            if (expr[i + 1] == '+' || expr[i + 1] == '/' || expr[i + 1] == '*' || expr[i + 1] == '-' || expr[i + 1] == '^')
+                return 0;
+        if (expr[i] == '*')
+            if (expr[i + 1] == '+' || expr[i + 1] == '/' || expr[i + 1] == '*' || expr[i + 1] == '-' || expr[i + 1] == '^')
+                return 0;
+        if (expr[i] == '/')
+            if (expr[i + 1] == '+' || expr[i + 1] == '/' || expr[i + 1] == '*' || expr[i + 1] == '-' || expr[i + 1] == '^')
+                return 0;
+        if (expr[i] == '^')
+            if (expr[i + 1] == '+' || expr[i + 1] == '/' || expr[i + 1] == '*' || expr[i + 1] == '-' || expr[i + 1] == '^')
+                return 0;
+    }
+    return 1;
+}
+//nr reale cu un singur punct
+int punctuatie() //Antonie
+{
+    int i, l, nr;
+    l = strlen(expr);
+    for (i = 0; i < l; i++)
+        if (strchr("*^/+-scleatx", expr[i]) == 0)
+        {
+            nr = 0;
+            while (strchr("*^/+-sclexat", expr[i]) == 0)
+            {
+                if (expr[i] == '.') nr++;
+                i++;
+            }
+            if (nr > 1) return 0;
+        }
+    return 1;
+}
+//dupa sin,cos... sa fie paranteza
+int s_c() //Antonie
+{
+    int i;
+    for (i = 1; i < vec->nr; i++)
+        if ((strchr("scatl", vec->info[i][0]) && strchr("0123456789x", vec->info[i + 1][0])) || (strchr("sc", vec->info[i + 1][0]) && strchr("0123456789x", vec->info[i][0])))
+            return 0;
+    return 1;
+}
+//prioritate
+int pro(char op) //Antonie
+{
+    int prioritate = -1;
+    switch (op)
+    {
+    case '(':
+        prioritate = 0;
+        break;
+    case ')':
+        prioritate = 0;
+        break;
+    case '+':
+        prioritate = 1;
+        break;
+    case '-':
+        prioritate = 1;
+        break;
+    case '*':
+        prioritate = 2;
+        break;
+    case '/':
+        prioritate = 2;
+        break;
+    case '^':
+        prioritate = 3;
+        break;
+    case 's':
+        prioritate = 4;
+        break;
+    case 'c':
+        prioritate = 4;
+        break;
+    case 'l':
+        prioritate = 4;
+        break;
+    case'e':
+            prioritate = 4;
+        break;
+    case 'a':
+        prioritate = 4;
+        break;
+    case 't':
+        prioritate = 4;
+        break;
+    }
+
+    return prioritate;
+}
+//vectorizare
+void Vectorizeaza() //Antonie
+{
+    int i, j, k = 1, nr;
+    i = 0;
+    while (i < strlen(expr))
+    {
+        if (expr[i] == 'e') vec->info[k][0] = expr[i];
+        else if (expr[i + 1] == 'n')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+
+        }
+        else if (expr[i] == 's' && expr[i + 1] == 'q')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+            i++;
+            vec->info[k][3] = expr[i];
+        }
+        else if((expr[i]=='c' && expr[i+1]=='o' && expr[i+2]=='s') || (expr[i] == 's' && expr[i + 1] == 'i' && expr[i + 2] == 'n'))
+        {
+
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+        }
+        else if (expr[i] == 't' && expr[i + 1] == 'g')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+        }
+        else if (expr[i] == 'c' && expr[i + 1] == 't' && expr[i + 2] == 'g')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+        }
+        else if (expr[i] == 'a' && expr[i + 3] == 's')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+            i++;
+            vec->info[k][3] = expr[i];
+            i++;
+            vec->info[k][4] = expr[i];
+            i++;
+            vec->info[k][5] = expr[i];
+        }
+        else if (expr[i] == 'a' && expr[i + 3] == 'c' && expr[i + 4] == 'o')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+            i++;
+            vec->info[k][3] = expr[i];
+            i++;
+            vec->info[k][4] = expr[i];
+            i++;
+            vec->info[k][5] = expr[i];
+        }
+        else if (expr[i] == 'a' && expr[i + 3] == 'c' && expr[i + 4] == 't')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+            i++;
+            vec->info[k][3] = expr[i];
+            i++;
+            vec->info[k][4] = expr[i];
+            i++;
+            vec->info[k][5] = expr[i];
+        }
+        else if (expr[i] == 'a' && expr[i + 3] == 't')
+        {
+            vec->info[k][0] = expr[i];
+            i++;
+            vec->info[k][1] = expr[i];
+            i++;
+            vec->info[k][2] = expr[i];
+            i++;
+            vec->info[k][3] = expr[i];
+            i++;
+            vec->info[k][4] = expr[i];
+        }
+        else if (strchr("()+-*/^x", expr[i]) != 0)
+        {
+            vec->info[k][0] = expr[i];
+        }
+        else
+        {
+            nr = 0;
+            while (strchr("()+-*/^sclexat", expr[i]) == 0)
+            {
+                vec->info[k][nr] = expr[i];
+                nr++;
+                i++;
+            }
+            i--;
+
+        }
+
+        i++;
+        k++;
+    }
+    k--;
+    vec->nr = k;
+}
+//program inserare la pozitia p
+void insereaza(int p) //Antonie
+{
+    int i;
+    for (i = (vec->nr) + 1; i >= p; i--)
+    {
+        strcpy(vec->info[i], vec->info[i - 1]);
+    }
+    vec->info[p][0] = '*';
+    vec->nr++;
+}
+//adauga semnul * in caz ca nu este pus
+void corecteaza() //Antonie
+{
+    int i;
+    for (i = vec->nr; i > 1; i--)
+        if ((vec->info[i][0] == 'x' && strchr("0123456789", vec->info[i - 1][0]))
+                || (vec->info[i - 1][0] == 'x' && strchr("0123456789", vec->info[i][0]))
+                || (vec->info[i - 1][0] == 'x' && strchr("scleat", vec->info[i][0]))
+                || (vec->info[i][0] == 'x' && vec->info[i - 1][0] == 'e')
+                || (strchr("scleat", vec->info[i][0]) && strchr("0123456789", vec->info[i - 1][0]))
+                || (strchr("(", vec->info[i][0]) && strchr("0123456789", vec->info[i - 1][0]))
+                || (strchr("0123456789", vec->info[i][0]) && strchr(")", vec->info[i - 1][0]))
+                || (strchr("scleat", vec->info[i][0]) && strchr(")", vec->info[i - 1][0]))
+           )
+            insereaza(i);
+}
+// transformare float to str
+void reverse(char* str, int len) //Antonie
+{
+    int i = 0, j = len - 1, temp;
+    while (i < j)
+    {
+        temp = str[i];
+        str[i] = str[j];
+        str[j] = temp;
+        i++;
+        j--;
+    }
+}
+int intToStr(int x, char str[], int d) //Antonie
+{
+    int i = 0;
+    while (x)
+    {
+        str[i++] = (x % 10) + '0';
+        x = x / 10;
+    }
+    while (i < d)
+        str[i++] = '0';
+
+    reverse(str, i);
+    str[i] = '\0';
+    return i;
+}
+void ftoa(float n, char* res, int afterpoint) //Antonie
+{
+    int ipart = (int)n;
+    float fpart = n - (float)ipart;
+    int i = intToStr(ipart, res, 0);
+    if (afterpoint != 0)
+    {
+        res[i] = '.';
+        fpart = fpart * pow(10, afterpoint);
+        intToStr((int)fpart, res + i + 1, afterpoint);
+    }
+}
+// arborizeaza
+void arborizeaza(arbore*& arb) //Antonie
+{
+    int i, top1, top2;
+    int topmax = 25;
+    char Operator[50][8];
+    arbore* Operand[50];
+    i = 1;
+    top1 = 0;
+    top2 = 1;
+    strcpy(Operator[top2],"(");
+    while (i <= vec->nr && top2 != 0)
+    {
+        i++;
+        if (strchr("xe0123456789", vec->info[i][0]) != 0)
+        {
+            top1++;
+            arb = new arbore;
+            strcpy(arb->inf, vec->info[i]);
+            arb->stg = NULL;
+            arb->dr = NULL;
+            Operand[top1] = arb;
+        }
+        else if (vec->info[i][0] == '(')
+        {
+            top2++;
+            strcpy(Operator[top2],"(");
+        }
+        else
+        {
+            while (top2 > 0 && strchr("()", Operator[top2][0]) == 0 && pro(Operator[top2][0]) >= pro(vec->info[i][0]))
+            {
+                if (strcmp("sqrt", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("sin", Operator[top2])==0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("cos", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("tg", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if(strcmp("ctg", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("arcsin", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("arccos", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("arctg", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("arcctg", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else if (strcmp("ln", Operator[top2]) == 0)
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->dr = Operand[top1];
+                    arb->stg = NULL;
+                    Operand[top1] = arb;
+                }
+                else
+                {
+                    arb = new arbore;
+                    strcpy(arb->inf, Operator[top2]);
+                    arb->stg = Operand[top1 - 1];
+                    arb->dr = Operand[top1];
+                    Operand[top1 - 1] = arb;
+                    top1--;
+                }
+                top2--;
+            }
+            if (top2 > 0)
+                if ((Operator[top2][0] != '(') || (vec->info[i][0] != ')'))
+                {
+                    top2++;
+                    strcpy(Operator[top2], vec->info[i]);
+                }
+                else top2--;
+
+        }
+
+    }
+
+    if (i == vec->nr && top2 == 0)
+    {
+        arb = new arbore;
+        arb = Operand[1];
+    }
+    else
+    {
+        arb = new arbore;
+        strcpy(arb->inf, "greseala");
+        arb->stg = NULL;
+        arb->dr = NULL;
+
+    }
+}
+//parcurgeri
+void parcurgereInordine(arbore* arb)
+{
+    if (arb)
+    {
+        parcurgereInordine(arb->stg);
+        cout << arb->inf << " ";
+        parcurgereInordine(arb->dr);
+    }
+}
+void parcurgereInordine_f(arbore* arb) //Antonie
+{
+    if (arb)
+    {
+        if (strchr("+-", arb->inf[0]))
+        {
+            strcat(expr_derivata, "(");
+            if(arb->stg)
+                parcurgereInordine_f(arb->stg);
+            strcat(expr_derivata, arb->inf);
+            parcurgereInordine_f(arb->dr);
+            strcat(expr_derivata, ")");
+        }
+        else if (strchr("asctl", arb->inf[0]) && arb->dr->inf[0]!='+' && arb->dr->inf[0]!='-')
+        {
+            strcat(expr_derivata, arb->inf);
+            strcat(expr_derivata, "(");
+            parcurgereInordine_f(arb->dr);
+            strcat(expr_derivata, ")");
+        }
+        else if (strchr("asctl", arb->inf[0]))
+        {
+            strcat(expr_derivata, arb->inf);
+            parcurgereInordine_f(arb->dr);
+        }
+        else if (arb->inf[0] == '^' && strchr("+-*/^",arb->stg->inf[0]))
+        {
+            strcat(expr_derivata, "(");
+            parcurgereInordine_f(arb->stg);
+            strcat(expr_derivata, ")");
+            strcat(expr_derivata, arb->inf);
+            parcurgereInordine_f(arb->dr);
+        }
+        else if (arb->inf[0] == '/' && strchr("+-*/^", arb->stg->inf[0]))
+        {
+            parcurgereInordine_f(arb->stg);
+            strcat(expr_derivata, arb->inf);
+            strcat(expr_derivata, "(");
+            parcurgereInordine_f(arb->dr);
+            strcat(expr_derivata, ")");
+        }
+        else
+        {
+            parcurgereInordine_f(arb->stg);
+            strcat(expr_derivata, arb->inf);
+            parcurgereInordine_f(arb->dr);
+        }
+
+    }
+}
+//deriveaza
+void Deriveaza(arbore* arbi, arbore*& arb) //Antonie
+{
+    arbore* arb1, * arb2, * arb3, * arb4, * arb5, * arb6, * arb7,*arb8;
+    arb = new arbore;
+    strcpy(arb->inf, "0");
+    arb->stg = NULL;
+    arb->dr = NULL;
+    if (arbi)
+    {
+        if(strcmp(arbi->inf,"x")==0)
+            strcpy(arb->inf, "1");
+
+        else if (strcmp(arbi->inf, "+") == 0)
+        {
+            Deriveaza(arbi->stg, arb3);
+            arb->stg = arb3;
+            Deriveaza(arbi->dr, arb4);
+            arb->dr = arb4;
+            strcpy(arb->inf, "+");
+        }
+        else if (strcmp(arbi->inf, "-") == 0)
+        {
+            Deriveaza(arbi->stg, arb3);
+            arb->stg = arb3;
+            Deriveaza(arbi->dr, arb4);
+            arb->dr = arb4;
+            strcpy(arb->inf, "+");
+        }
+        else if (strcmp(arbi->inf, "*") == 0)
+        {
+            arb1 = new arbore;
+            arb2 = new arbore;
+            Deriveaza(arbi->stg, arb3);
+            Deriveaza(arbi->dr, arb4);
+            strcpy(arb->inf, "+");
+            arb1->stg = arb3;
+            arb1->dr = arbi->dr;
+            strcpy(arb1->inf, "*");
+            arb2->stg = arbi->stg;
+            arb2->dr = arb4;
+            strcpy(arb2->inf, "*");
+            arb->stg = arb1;
+            arb->dr = arb2;
+        }
+        else if (strcmp(arbi->inf, "/") == 0)
+        {
+            arb1 = new arbore;
+            arb2 = new arbore;
+            arb = new arbore;
+            arb5 = new arbore;
+            Deriveaza(arbi->stg, arb3);
+            Deriveaza(arbi->dr, arb4);
+            strcpy(arb1->inf, "*");
+            arb1->stg = arbi->stg;
+            arb1->dr = arb4;
+            strcpy(arb2->inf, "*");
+            arb2->stg = arb3;
+            arb2->dr = arbi->dr;
+            strcpy(arb5->inf, "-");
+            arb5->stg = arb1;
+            arb5->dr = arb2;
+            arb6 = new arbore;
+            arb7 = new arbore;
+            strcpy(arb6->inf, "2");
+            arb6->stg = NULL;
+            arb6->dr = NULL;
+            strcpy(arb7->inf, "^");
+            arb7->stg = arbi->dr;
+            arb7->dr = arb6;
+            strcpy(arb->inf, "/");
+            arb->stg = arb5;
+            arb->dr = arb7;
+        }
+        else if (strcmp(arbi->inf, "sqrt") == 0)
+        {
+            Deriveaza(arbi->dr, arb1);
+            arb2 = new arbore;
+            arb3 = new arbore;
+            strcpy(arb3->inf, "2");
+            arb3->stg = NULL;
+            arb3->dr = NULL;
+            strcpy(arb2->inf, "sqrt");
+            arb2->stg = arb3;
+            arb2->dr = arbi -> dr;
+            strcpy(arb->inf, "/");
+            arb->stg = arb1;
+            arb->dr = arb2;
+        }
+        else if (strcmp(arbi->inf, "sin") == 0)
+        {
+            arb1 = new arbore;
+            strcpy(arb1->inf, "cos");
+            arb1->dr = arbi->dr;
+            arb1->stg = NULL;
+            Deriveaza(arbi->dr, arb2);
+            strcpy(arb->inf, "*");
+            arb->stg = arb1;
+            arb->dr = arb2;
+        }
+        else if (strcmp(arbi->inf, "cos") == 0)
+        {
+            Deriveaza(arbi->dr, arb4);
+            arb1 = new arbore;
+            arb2 = new arbore;
+            arb3 = new arbore;
+            strcpy(arb1->inf, "0");
+            arb1->stg = NULL;
+            arb1->dr = NULL;
+            strcpy(arb2->inf, "sin");
+            arb2->dr = arbi->dr;
+            arb2->stg = NULL;
+            strcpy(arb3->inf, "*");
+            arb3->stg = arb2;
+            arb3->dr = arb4;
+            strcpy(arb->inf, "-");
+            arb->stg = arb1;
+            arb->dr = arb3;
+        }
+        else if (strcmp(arbi->inf, "tg") == 0)
+        {
+            Deriveaza(arbi->dr, arb4);
+            arb1 = new arbore;
+            arb2 = new arbore;
+            arb3 = new arbore;
+            strcpy(arb1->inf, "^");
+            strcpy(arb2->inf, "cos");
+            arb2->dr = arbi->dr;
+            arb2->stg = NULL;
+            strcpy(arb3->inf, "2");
+            arb3->stg = NULL;
+            arb3->dr = NULL;
+            arb1->stg = arb2;
+            arb1->dr = arb3;
+            strcpy(arb->inf, "/");
+            arb->stg = arb4;
+            arb->dr = arb1;
+        }
+        else if (strcmp(arbi->inf, "ctg") == 0)
+        {
+            Deriveaza(arbi->dr, arb7);
+            arb2 = new arbore;
+            arb3 = new arbore;
+            arb4 = new arbore;
+            arb5 = new arbore;
+            arb6 = new arbore;
+            strcpy(arb2->inf, "-");
+            strcpy(arb4->inf, "0");
+            arb4->stg = NULL;
+            arb4->dr = NULL;
+            arb2->stg = arb4;
+            arb2->dr = arb7;
+            strcpy(arb3->inf, "^");
+            strcpy(arb5->inf, "2");
+            arb5->stg = NULL;
+            arb5->dr = NULL;
+            strcpy(arb6->inf, "sin");
+            arb6->stg = NULL;
+            arb6->dr = arbi->dr;
+            arb3->stg = arb6;
+            arb3->dr = arb5;
+            strcpy(arb->inf, "/");
+            arb->stg = arb2;
+            arb->dr = arb3;
+        }
+        else if (strcmp(arbi->inf, "arcsin") == 0)
+        {
+            Deriveaza(arbi->dr, arb6);
+            arb1 = new arbore;
+            arb2 = new arbore;
+            arb3 = new arbore;
+            arb4 = new arbore;
+            arb5 = new arbore;
+            strcpy(arb5->inf, "2");
+            arb5->stg = NULL;
+            arb5->dr = NULL;
+            strcpy(arb4->inf, "^");
+            arb4->stg = arbi->dr;
+            arb4->dr = arb5;
+            strcpy(arb2->inf, "-");
+            strcpy(arb3->inf, "1");
+            arb3->stg = NULL;
+            arb3->dr = NULL;
+            arb2->stg = arb3;
+            arb2->dr = arb4;
+            strcpy(arb1->inf, "sqrt");
+            arb1->stg = NULL;
+            arb1->dr = arb2;
+            strcpy(arb->inf, "/");
+            arb->stg = arb6;
+            arb->dr = arb1;
+        }
+        else if (strcmp(arbi->inf, "arccos") == 0)
+        {
+            Deriveaza(arbi->dr, arb4);
+            arb1 = new arbore;
+            arb2 = new arbore;
+            arb3 = new arbore;
+            arb5 = new arbore;
+            arb6 = new arbore;
+            arb7 = new arbore;
+            arb8 = new arbore;
+            strcpy(arb7->inf, "2");
+            arb7->stg = NULL;
+            arb7->dr = NULL;
+            strcpy(arb6->inf, "1");
+            arb6->stg = NULL;
+            arb6->dr = NULL;
+            strcpy(arb3->inf, "0");
+            arb3->stg = NULL;
+            arb3->dr = NULL;
+            strcpy(arb8->inf, "^");
+            arb8->stg = arbi->dr;
+            arb8->dr = arb7;
+            strcpy(arb5->inf, "-");
+            arb5->stg = arb6;
+            arb5->dr = arb8;
+            strcpy(arb1->inf, "sqrt");
+            arb1->stg = NULL;
+            arb1->dr = arb5;
+            strcpy(arb2->inf, "-");
+            arb2->stg = arb3;
+            arb2->dr = arb4;
+            strcpy(arb->inf, "/");
+            arb->stg = arb2;
+            arb->dr = arb1;
+
+        }
+        else if (strcmp(arbi->inf, "arctg") == 0)
+        {
+            Deriveaza(arbi->dr, arb1);
+            arb2 = new arbore;
+            arb3 = new arbore;
+            arb4 = new arbore;
+            arb5 = new arbore;
+            strcpy(arb4->inf, "2");
+            arb4->stg = NULL;
+            arb4->dr = NULL;
+            strcpy(arb3->inf, "1");
+            arb3->stg = NULL;
+            arb3->dr = NULL;
+            strcpy(arb5->inf, "^");
+            arb5->stg = arbi->dr;
+            arb5->dr = arb4;
+            strcpy(arb2->inf, "+");
+            arb2->stg = arb3;
+            arb2->dr = arb5;
+            strcpy(arb->inf, "/");
+            arb->stg = arb1;
+            arb->dr = arb2;
+
+        }
+        else if (strcmp(arbi->inf, "arcctg") == 0)
+        {
+            Deriveaza(arbi->dr, arb4);
+            arb1 = new arbore;
+            arb2 = new arbore;
+            arb3 = new arbore;
+            arb5 = new arbore;
+            arb6 = new arbore;
+            arb7 = new arbore;
+            strcpy(arb7->inf, "2");
+            arb7->stg = NULL;
+            arb7->dr = NULL;
+            strcpy(arb5->inf, "1");
+            arb5->stg = NULL;
+            arb5->dr = NULL;
+            strcpy(arb3->inf, "0");
+            arb3->stg = NULL;
+            arb3->dr = NULL;
+            strcpy(arb6->inf, "^");
+            arb6->stg = arbi->dr;
+            arb6->dr = arb7;
+            strcpy(arb2->inf, "+");
+            arb2->stg = arb5;
+            arb2->dr = arb6;
+            strcpy(arb1->inf, "-");
+            arb1->stg = arb3;
+            arb1->dr = arb4;
+            strcpy(arb->inf, "/");
+            arb->stg = arb1;
+            arb->dr = arb2;
+        }
+        else if (strcmp(arbi->inf, "ln") == 0)
+        {
+            Deriveaza(arbi->dr, arb1);
+            strcpy(arb->inf, "/");
+            arb->stg = arb1;
+            arb->dr = arbi->dr;
+        }
+        else if (strcmp(arbi->inf, "e") == 0)
+        {
+            arb2 = new arbore;
+            strcpy(arb2->inf, arbi->inf);
+            arb2->stg = arbi->stg;
+            arb2->dr = arbi->dr;
+            Deriveaza(arbi->stg, arb1);
+            strcpy(arb->inf, "*");
+            arb->stg = arb2;
+            arb->dr = arb1;
+        }
+        else if (strcmp(arbi->inf, "^") == 0)
+        {
+            Deriveaza(arbi->stg, arb1);
+            arb5 = new arbore;
+            arb2 = new arbore;
+            strcpy(arb5->inf, "1");
+            arb5->stg = NULL;
+            arb5->dr = NULL;
+            strcpy(arb2->inf, "-");
+            arb2->stg = arbi->dr;
+            arb2->dr = arb5;
+            arb3 = new arbore;
+            strcpy(arb3->inf, "^");
+            arb3->stg = arbi->stg;
+            arb3->dr = arb2;
+            arb4 = new arbore;
+            strcpy(arb4->inf, "*");
+            arb4->stg = arbi->dr;
+            arb4->dr = arb3;
+            strcpy(arb->inf, "*");
+            arb->stg = arb4;
+            arb->dr = arb1;
+        }
+    }
+}
+//cazuri *0
+void simplifica(arbore *arb) //Antonie
+{
+    if (arb)
+    {
+        if (arb->inf[0] == '*')
+        {
+            if (strcmp(arb->stg->inf,"0")==0 || strcmp(arb->dr->inf,"0")==0)
+            {
+                strcpy(arb->inf, "0");
+                arb->stg = NULL;
+                arb->dr = NULL;
+            }
+        }
+        simplifica(arb->stg);
+        simplifica(arb->dr);
+    }
+}
+//*+- 1,0
+void reducere(arbore* arb)
+{
+    arbore* aux;
+    if (arb)
+    {
+        if (arb->stg)
+            reducere(arb->stg);
+        if (arb->dr)
+            reducere(arb->dr);
+        if (strchr("+*-asct/", arb->inf[0]))
+        {
+            if (arb->stg)
+            {
+                if (arb->stg->inf[0] == '*')
+                {
+                    if (arb->stg->stg && arb->stg->dr)
+                    {
+                        if (arb->stg->stg->inf[0] == '1')
+                        {
+                            aux = arb->stg;
+                            arb->stg = arb->stg->dr;
+                            delete aux;
+                        }
+                        else if (arb->stg->dr->inf[0] == '1')
+                        {
+                            aux = arb->stg;
+                            arb->stg = arb->stg->stg;
+                            delete aux;
+                        }
+                        else if(arb->stg->stg->inf[0] == '0')
+                        {
+                            arb->stg = NULL;
+                        }
+                        else if (arb->stg->dr->inf[0] == '0')
+                        {
+                            arb->stg = NULL;
+                        }
+                    }
+                    else;
+                }
+                else if (arb->stg->inf[0] == '+')
+                {
+                    if (arb->stg->stg && arb->stg->dr)
+                    {
+                        if (arb->stg->stg->inf[0] == '0')
+                        {
+                            aux = arb->stg;
+                            arb->stg = arb->stg->dr;
+                            delete aux;
+                        }
+                        else if (arb->stg->dr->inf[0] == '0')
+                        {
+                            aux = arb->stg;
+                            arb->stg = arb->stg->stg;
+                            delete aux;
+                        }
+                        else;
+                    }
+                }
+            }
+            if (arb->dr)
+            {
+                if (arb->dr->inf[0] == '*')
+                {
+                    if (arb->dr->stg && arb->dr->dr)
+                    {
+                        if (arb->dr->stg->inf[0] == '1')
+                        {
+                            aux = arb->dr;
+                            arb->dr = arb->dr->dr;
+                            delete aux;
+                        }
+                        else if (arb->dr->dr->inf[0] == '1')
+                        {
+                            aux = arb->dr;
+                            arb->dr = arb->dr->stg;
+                            delete aux;
+                        }
+                        else if (arb->dr->stg->inf[0] == '0')
+                        {
+                            arb->dr = NULL;
+                        }
+                        else if (arb->dr->dr->inf[0] == '0')
+                        {
+                            arb->dr = NULL;
+                        }
+                    }
+                    else;
+                }
+
+                else if (arb->dr->inf[0] == '+')
+                {
+                    if (arb->dr->stg && arb->dr->dr)
+                    {
+                        if (arb->dr->stg->inf[0] == '0')
+                        {
+                            aux = arb->dr;
+                            arb->dr = arb->dr->dr;
+                            delete aux;
+                        }
+                        else if (arb->dr->dr->inf[0] == '0')
+                        {
+                            aux = arb->dr;
+                            arb->dr = arb->dr->stg;
+                            delete aux;
+                        }
+                        else;
+                    }
+                }
+
+            }
+            if (arb->inf[0] == '-')
+            {
+                if (arb->stg)
+                {
+                    if (arb->stg->inf[0] == '0') arb->stg = NULL;
+                }
+            }
+        }
+
+    }
+}
+void simp(arbore* arb) //Antonie
+{
+    arbore* aux;
+    float x, y;
+    int z,l;
+    if (arb)
+    {
+        if (arb->stg)
+            simp(arb->stg);
+        if (arb->dr)
+            simp(arb->dr);
+        if (arb->inf[0] == '*')
+        {
+            if (arb->stg && arb->dr && arb->dr->stg && arb->dr->dr)
+            {
+                if (arb->dr->inf[0] == '*')
+                {
+                    if (isdigit(arb->stg->inf[0]))
+                    {
+                        if (isdigit(arb->dr->stg->inf[0]))
+                        {
+                            aux = arb->dr;
+                            x = atof(arb->stg->inf);
+                            y = atof(arb->dr->stg->inf);
+                            x = x * y;
+                            ftoa(x, arb->stg->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->stg->inf);
+                                arb->stg->inf[l - 3] = 0;
+                            }
+                            arb->dr = arb->dr->dr;
+                            delete aux;
+                        }
+                        else if (isdigit(arb->dr->dr->inf[0]))
+                        {
+                            aux = arb->dr;
+                            x = atof(arb->stg->inf);
+                            y = atof(arb->dr->dr->inf);
+                            x = x * y;
+                            ftoa(x, arb->stg->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->stg->inf);
+                                arb->stg->inf[l - 3] = 0;
+                            }
+                            arb->dr = arb->dr->stg;
+                            delete aux;
+                        }
+                    }
+                }
+                if (arb->stg->inf[0] == '*')
+                {
+                    if (isdigit(arb->dr->inf[0]))
+                    {
+                        if (isdigit(arb->stg->stg->inf[0]))
+                        {
+                            aux = arb->stg;
+                            x = atof(arb->dr->inf);
+                            y = atof(arb->stg->stg->inf);
+                            x = x * y;
+                            ftoa(x, arb->dr->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->dr->inf);
+                                arb->dr->inf[l - 3] = 0;
+                            }
+                            arb->stg = arb->stg->dr;
+                            delete aux;
+                        }
+                        else if (isdigit(arb->stg->dr->inf[0]))
+                        {
+                            aux = arb->stg;
+                            x = atof(arb->dr->inf);
+                            y = atof(arb->stg->dr->inf);
+                            x = x * y;
+                            ftoa(x, arb->dr->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->dr->inf);
+                                arb->stg->inf[l - 3] = 0;
+                            }
+                            arb->stg = arb->stg->stg;
+                            delete aux;
+                        }
+                    }
+                }
+            }
+        }
+        if (arb->stg)
+        {
+            if (arb->stg->stg && arb->stg->dr)
+            {
+                if (arb->stg->inf[0] == '^')
+                {
+                    if (strcmp(arb->stg->dr->inf, "1.00") == 0 || strcmp(arb->stg->dr->inf, "1") == 0)
+                    {
+                        aux = arb->stg;
+                        arb->stg = arb->stg->stg;
+                        delete aux;
+                    }
+
+                }
+            }
+        }
+        if (arb->dr)
+        {
+            if (arb->dr->stg && arb->dr->dr)
+            {
+                if (arb->dr->inf[0] == '^')
+                {
+                    if (strcmp(arb->dr->dr->inf, "1.00") == 0 || strcmp(arb->dr->dr->inf, "1") == 0)
+                    {
+                        aux = arb->dr;
+                        arb->dr = arb->dr->stg;
+                        delete aux;
+                    }
+
+                }
+            }
+        }
+        if (arb->stg)
+        {
+            if (arb->stg->stg && arb->stg->dr)
+            {
+                if (arb->stg->inf[0] == '^')
+                {
+                    if (strcmp(arb->stg->stg->inf, "1.00") == 0 || strcmp(arb->stg->stg->inf, "1") == 0)
+                    {
+                        aux = arb->stg;
+                        arb->stg = arb->stg->stg;
+                        delete aux;
+                    }
+
+                }
+            }
+        }
+        if (arb->dr)
+        {
+            if (arb->dr->stg && arb->dr->dr)
+            {
+                if (arb->dr->inf[0] == '^')
+                {
+                    if (strcmp(arb->dr->stg->inf, "1.00") == 0 || strcmp(arb->dr->stg->inf, "1") == 0)
+                    {
+                        aux = arb->dr;
+                        arb->dr = arb->dr->stg;
+                        delete aux;
+                    }
+
+                }
+            }
+        }
+        if (arb->inf[0] == '^')
+        {
+            if (arb->stg && arb->dr)
+            {
+                if (strcmp(arb->dr->inf, "0") == 0 || strcmp(arb->dr->inf, "0.00") == 0)
+                {
+                    strcpy(arb->inf, "1");
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+                else if (strcmp(arb->stg->inf, "0") == 0 || strcmp(arb->stg->inf, "0.00") == 0)
+                {
+                    strcpy(arb->inf, "0");
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+            }
+        }
+        arbore* arb1, * arb2;
+        if (arb->inf[0] == '^')
+        {
+            if (arb->stg && arb->dr)
+            {
+                if (arb->stg->inf[0] == '*')
+                {
+                    if (arb->stg->stg && arb->stg->dr)
+                    {
+                        if (isdigit(arb->dr->inf[0]) && isdigit(arb->stg->stg->inf[0]))
+                        {
+                            x = atof(arb->dr->inf);
+                            y = atof(arb->stg->stg->inf);
+                            x = pow(x, y);
+                            arb1 = arb->stg->dr;
+                            arb2 = new arbore;
+                            arb2->stg = NULL;
+                            arb2->dr = NULL;
+                            strcpy(arb2->inf, arb->dr->inf);
+                            arb->stg->stg = NULL;
+                            arb->stg->dr = NULL;
+                            ftoa(x, arb->stg->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->stg->inf);
+                                arb->stg->inf[l - 3] = 0;
+                            }
+                            strcpy(arb->dr->inf, "^");
+                            arb->dr->stg = arb1;
+                            arb->dr->dr = arb2;
+                            strcpy(arb->inf, "*");
+
+                        }
+                        else if (isdigit(arb->dr->inf[0]) && isdigit(arb->stg->dr->inf[0]))
+                        {
+                            x = atof(arb->dr->inf);
+                            y = atof(arb->stg->dr->inf);
+                            x = pow(x, y);
+                            arb1 = arb->stg->stg;
+                            arb2 = new arbore;
+                            arb2->stg = NULL;
+                            arb2->dr = NULL;
+                            strcpy(arb2->inf, arb->dr->inf);
+                            arb->stg->stg = NULL;
+                            arb->stg->dr = NULL;
+                            ftoa(x, arb->stg->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->stg->inf);
+                                arb->stg->inf[l - 3] = 0;
+                            }
+                            strcpy(arb->dr->inf, "^");
+                            arb->dr->stg = arb1;
+                            arb->dr->dr = arb2;
+                            strcpy(arb->inf, "*");
+
+                        }
+                    }
+                }
+            }
+        }
+        if (arb->inf[0] == '^')
+        {
+            if (arb->stg && arb->dr)
+            {
+                if (arb->stg->inf[0] == '^')
+                {
+                    if(arb->stg->stg && arb->stg->dr)
+                        if (isdigit(arb->dr->inf[0]) && isdigit(arb->stg->dr->inf[0]))
+                        {
+                            x = atof(arb->dr->inf);
+                            y = atof(arb->stg->dr->inf);
+                            x = x + y;
+                            aux = arb->stg;
+                            arb->stg = arb->stg->stg;
+                            //delete aux;
+                            ftoa(x, arb->dr->inf, 2);
+                            z = x * 100;
+                            if (z % 100 == 0)
+                            {
+                                l = strlen(arb->dr->inf);
+                                arb->dr->inf[l - 3] = 0;
+                            }
+                        }
+                }
+            }
+        }
+    }
+}
+//modifica radacina daca este cazul
+void reducere_r(arbore * &arb) //Antonie
+{
+    arbore * aux;
+    if (arb)
+    {
+        if (arb->inf[0] == '*')
+        {
+            if (arb->dr && arb->stg)
+            {
+                if (arb->stg->inf[0] == '1')
+                {
+                    aux = arb;
+                    arb = arb->dr;
+                    delete aux;
+                }
+                else if (arb->dr->inf[0] == '1')
+                {
+                    aux = arb;
+                    arb = arb->stg;
+                    delete aux;
+                }
+                else if (arb->stg->inf[0] == '0')
+                {
+                    strcpy(arb->inf, "0");
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+                else if (arb->dr->inf[0] == '0')
+                {
+                    strcpy(arb->inf, "0");
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+                else;
+            }
+            else if (arb->dr)
+            {
+                aux = arb;
+                arb = arb->dr;
+                delete aux;
+            }
+            else if (arb->stg)
+            {
+                aux = arb;
+                arb = arb->stg;
+                delete aux;
+            }
+            else;
+        }
+        else if ( arb->inf[0]=='+')
+        {
+            if (arb->stg && arb->dr)
+            {
+                if (arb->stg->inf[0] == '0')
+                {
+                    aux = arb;;
+                    arb = arb->dr;
+                    delete aux;
+                }
+                else if (arb->dr->inf[0] == '0')
+                {
+                    aux = arb;
+                    arb = arb->stg;
+                    delete aux;
+                }
+                else;
+            }
+            else if (arb->stg)
+            {
+                aux = arb;
+                arb = arb->stg;
+                delete aux;
+            }
+            else if (arb->dr)
+            {
+                aux = arb;
+                arb = arb->dr;
+                delete aux;
+            }
+            else;
+        }
+        else if (arb->inf[0] == '-')
+        {
+            if (arb->stg && arb->dr)
+            {
+                if (arb->stg->inf[0] == '0')
+                    arb->stg = NULL;
+                else if (arb->dr->inf[0] == '0')
+                {
+                    aux = arb;
+                    arb = arb->stg;
+                    delete aux;
+                }
+                else;
+            }
+            else if (arb->stg)
+            {
+                aux = arb;
+                arb = arb->stg;
+                delete aux;
+            }
+        }
+        else if (arb->inf[0] == '^')
+        {
+            if (arb->stg && arb->dr)
+            {
+                if (arb->dr->inf[0] == '1')
+                {
+                    aux = arb;
+                    arb = arb->stg;
+                    delete aux;
+                }
+            }
+        }
+    }
+}
+//*+-/ cu numere
+void operatii_nr(arbore *arb) //Antonie
+{
+    float x=0, y=0;
+    int z, l;
+    if (arb)
+    {
+        if (arb->stg)
+            operatii_nr(arb->stg);
+        if (arb->dr)
+            operatii_nr(arb->dr);
+        if (arb->stg && arb->dr)
+        {
+            if(arb->inf[0]=='+')
+                if (isdigit(arb->stg->inf[0]) && isdigit(arb->dr->inf[0]))
+                {
+                    x = atof(arb->stg->inf);
+                    y = atof(arb->dr->inf);
+                    x = x + y;
+                    ftoa(x, arb->inf, 2);
+                    z = x * 100;
+                    if (z % 100 == 0)
+                    {
+                        l = strlen(arb->inf);
+                        arb->inf[l - 3] = 0;
+                    }
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+
+                }
+            if (arb->inf[0] == '*')
+                if (isdigit(arb->stg->inf[0]) && isdigit(arb->dr->inf[0]))
+                {
+                    x = atof(arb->stg->inf);
+                    y = atof(arb->dr->inf);
+                    x = x * y;
+                    ftoa(x, arb->inf, 2);
+                    z = x * 100;
+                    if (z % 100 == 0)
+                    {
+                        l = strlen(arb->inf);
+                        arb->inf[l - 3] = 0;
+                    }
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+            if (arb->inf[0] == '-')
+                if (isdigit(arb->stg->inf[0]) && isdigit(arb->dr->inf[0]))
+                {
+                    x = atof(arb->stg->inf);
+                    y = atof(arb->dr->inf);
+                    x = x - y;
+                    ftoa(x, arb->inf, 2);
+                    z = x * 100;
+                    if (z % 100 == 0)
+                    {
+                        l = strlen(arb->inf);
+                        arb->inf[l - 3] = 0;
+                    }
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+            if (arb->inf[0] == '/')
+                if (isdigit(arb->stg->inf[0]) && isdigit(arb->dr->inf[0]))
+                {
+                    x = atof(arb->stg->inf);
+                    y = atof(arb->dr->inf);
+                    x = x / y;
+                    ftoa(x, arb->inf, 2);
+                    z = x * 100;
+                    if (z % 100 == 0)
+                    {
+                        l = strlen(arb->inf);
+                        arb->inf[l - 3] = 0;
+                    }
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+            if (arb->inf[0] == '^')
+                if (isdigit(arb->stg->inf[0]) && isdigit(arb->dr->inf[0]))
+                {
+                    x = atof(arb->stg->inf);
+                    y = atof(arb->dr->inf);
+                    x = pow(x,y);
+                    ftoa(x, arb->inf, 2);
+                    z = x * 100;
+                    if (z % 100 == 0)
+                    {
+                        l = strlen(arb->inf);
+                        arb->inf[l - 3] = 0;
+                    }
+                    arb->stg = NULL;
+                    arb->dr = NULL;
+                }
+        }
+
+    }
+}
+void parcurgerePreordine_f(arbore *arb)
+{
+    if(arb!=0)
+    {
+        strcat (expr_arbore2,arb->inf);
+        parcurgerePreordine_f(arb->stg);
+        parcurgerePreordine_f(arb->dr);
+
+    }
+}
+void parcurgerePostordine_f(arbore *arb)
+{
+    if(arb!=0)
+    {
+        parcurgerePostordine_f(arb->stg);
+        parcurgerePostordine_f(arb->dr);
+        strcat(expr_arbore3, arb->inf);
+    }
+}
+int nrColoane(arbore *a) //Ana + cursuri
+{
+    if(a==NULL)return 0;
+    else
+    {
+        int n1=nrColoane(a->stg);
+        int n2=nrColoane(a->dr);
+        return 1+n1+n2;
+    }
+}
+
+void deseneazaNod(char elem[50], int xc, int yc, int latime, int inaltime) //Ana + cursuri
+{
+
+    setfillstyle(SOLID_FILL,BLACK);
+    fillellipse(xc,yc,textwidth(elem)+9, 20);
+    settextstyle(3,0,1);
+    setbkcolor(BLACK);
+    setcolor(WHITE);
+    settextjustify(1,1);
+    outtextxy(xc+3,yc+3,elem);
+}
+
+void deseneazaArbore(arbore *&a, int niv, int stanga, int latime, int inaltime) //Ana + cursuri
+{
+    if(a!=NULL)
+    {
+        int n1=nrColoane(a->stg);
+        int xc=stanga+latime*n1+latime/2;
+        int yc=niv*inaltime-inaltime/2;
+        if (a->stg!=NULL)
+        {
+            int xcs=stanga+latime*nrColoane(a->stg->stg)+latime/2;
+            setcolor(BLACK);
+            line(xc,yc,xcs,yc+inaltime);
+        }
+        if (a->dr!=NULL)
+        {
+            int xcd=stanga+latime*(n1+1)+latime*nrColoane(a->dr->stg)+latime/2;
+            setcolor(BLACK);
+            line(xc,yc,xcd,yc+inaltime);
+        }
+        deseneazaNod(a->inf,xc,yc,latime, inaltime);
+        deseneazaArbore(a->stg,niv+1,stanga, latime, inaltime);
+        deseneazaArbore(a->dr,niv+1,stanga+latime*(n1+1), latime, inaltime);
+    }
+}
+int nrNiveluri(arbore *a) //Ana + cursuri
+{
+    if(a==NULL)return 0;
+    else
+    {
+        int n1=nrNiveluri(a->stg);
+        int n2=nrNiveluri(a->dr);
+        return 1+max(n1,n2);
+    }
+}
+
+
+void nume() //Ana
+{
+    setlinestyle(0,1,3);
+    setcolor(COLOR(255,100,0));
+    rectangle(1499,70,0,0);
+    settextstyle(1,0,4);
+    outtextxy(40,38, "DERIV - DERIVARE FORMALA");
+    setcolor(3);
+    settextstyle(1,0,4);
+    settextstyle(10, 0, 3);
+    outtextxy(60,530,"INFO");
+    outtextxy(60,630,"Arborele");
+    outtextxy(60,660,"derivatei");
+    outtextxy(1100,630,"Derivata de");
+    outtextxy(1100,660, "grad superior");
+    settextstyle(10,0,3);
+    outtextxy(650,530,"Formula de la");
+    outtextxy(650,560,"tastatura");
+    outtextxy(1100,530,"Formula din");
+    outtextxy(1100,560,"fisier");
+    outtextxy(650,630,"Notatiile");
+    outtextxy(650,660,"arborelui");
+
+}
+void desen() //Ana
+{
+    int i,j;
+    setlinestyle(0,1,3);
+    setcolor(COLOR(255,100,0));
+    numar=3;
+    lungimea=1500;
+    height=100;
+    latura=lungimea/numar;
+    stanga=0;
+    sus=getmaxy()-height*2;
+    for(i=1; i<=numar; i++)
+        for(j=1; j<numar; j++)
+            rectangle(stanga+latura*(i-1),sus+height*(j-1),stanga+latura*i,sus+height*j);
+
+}
+
+void CitesteSir(int x, int y, char mesaj[256], char S[256] ) //Ana
+{
+    char enter = 13, backspace = 8, escape =27, s2[2];
+    s2[1]='\0';
+    char MultimeDeCaractereAcceptate[256]="0123456789abcdefghijklmnopqrstuvwxyz~!`@#$%+-^&*/\\()_=[],;.?<>:;{} ";
+    char S_init[256];
+    char tasta;
+    char S_[256];
+    char mesaj_[256];
+    strcpy(mesaj_,mesaj);
+    strcpy(S_init,S);
+    settextstyle(10,0,4);
+    setcolor(WHITE);
+    settextjustify(0,0);
+    outtextxy(x,y,mesaj_);
+    x=x+textwidth(mesaj);
+    strcpy(S,"");
+    strcpy(S_,S);
+    strcat(S_,"_");
+    setcolor(BLACK);
+    outtextxy(x,y,S_);
+    s2[0]=tasta;
+    strcat(S,s2);
+    strcpy(S_,S);
+    strcat(S_,"_");
+    setcolor(WHITE);
+    outtextxy(x,y,S_);
+
+    do
+    {
+        tasta=getch();
+        if (strchr(MultimeDeCaractereAcceptate, tasta))
+        {
+            strcpy(S_,S);
+            strcat(S_,"_");
+            setcolor(BLACK);
+            outtextxy(x,y,S_);
+            s2[0]=tasta;
+            strcat(S,s2);
+            strcpy(S_,S);
+            strcat(S_,"_");
+            setcolor(WHITE);
+            outtextxy(x,y,S_);
+        }
+        if (tasta==backspace)
+        {
+
+            setcolor(BLACK);
+            outtextxy(x,y,S_);
+            setcolor(WHITE);
+            S[strlen(S)-1]='\0';
+            strcpy(S_,S);
+            strcat(S_,"_") ;
+            outtextxy(x,y,S_);
+
+        }
+
+    }
+    while (tasta!=enter && tasta!=escape);
+    if (tasta == escape) strcpy(S,S_init);
+    setcolor(BLACK);
+    outtextxy(x,y,S_);
+    setcolor(WHITE);
+    outtextxy(x,y,S);
+    strcpy(expr, "");
+    strcpy(expr_derivata, "");
+    delete arb;
+    delete arb_d;
+    int a, b;
+    for(a=1; a<=vec->nr; a++)
+        for(b=0; b<=5; b++)
+            vec->info[a][b]=NULL;
+    vec->nr=0;
+    strcpy(aux, "");
+    strcpy(expr, S);
+    cout<<"expresia: "<<expr<<endl;
+    strcpy(aux, expr);
+    strcpy(expr, "(");
+    strcpy(expr + 1, aux);
+    strcat(expr, ")");
+    Vectorizeaza();
+    corecteaza();
+    if (paranteze() == 0 || operatori() == 0 || s_c() == 0 || punctuatie() == 0)
+    {
+        outtextxy(5,240,"expresia introdusa este incorecta");
+        g<<"Expresia este gresita";
+        g<<endl;
+    }
+    else
+    {
+        arborizeaza(arb);
+        Deriveaza(arb, arb_d);
+        simplifica(arb_d);
+        reducere(arb_d);
+        reducere_r(arb_d);
+        operatii_nr(arb_d);
+        simp(arb_d);
+        parcurgereInordine_f(arb_d);
+        cout << "Derivata functiei f(x) este:    " << expr_derivata << endl;
+        settextstyle(10,0,4);
+        outtextxy(5,240,"f'(x)= ");
+        outtextxy(120,240, expr_derivata);
+        g<<"f'(x)="<<expr_derivata;
+        g<<endl;
+    }
+
+
+}
+void FormulaDeLaTastatura() //Ana
+{
+    char mesaj[256];
+    settextstyle(10,0,4);
+    strcpy(mesaj,"f(x)=");
+    CitesteSir(5,180,mesaj,formula);
+    g<<"f(x)="<<formula;
+    g<<endl;
+
+}
+
+int butoane() //Ana
+{
+    int linia,coloana,x,y;
+    bool ok=1;
+    while(ismouseclick(WM_LBUTTONDOWN)&&ok==1)
+    {
+        clearviewport();
+        nume();
+        desen();
+        clearmouseclick(WM_LBUTTONDOWN);
+        x=mousex();
+        y=mousey();
+        if (x>=stanga && x<=stanga+latura && y>=sus&&y<=sus+height) //INFO
+        {
+            setcolor(7);
+            settextstyle(9,0,2);
+            outtextxy(15,100,"1. Programul accepta ca variabila x; ");
+            outtextxy(15,130,"2. Programul poate deriva functiile: sin, cos, tg, ctg, arctg, arcctg, arcsin, arccos, ln;");
+            outtextxy(15,160, "3. Dupa introducerea formulei de la tastatura, pentru DERIVATA, apasa ENTER;");
+            outtextxy(15,190, "4. Formula, derivata si notatiile vor fi salvate in fisierul deriv.txt;");
+            outtextxy(15,220, "5. In cazul introducerii functiei din fisier, aceasta se va face prin fisierul formule.txt;");
+            outtextxy(15,250, "6. In cazul derivatei de grad mai mare, functia finala o sa fie denumita g(x);");
+            outtextxy(5,400,"Proiect realizat de:");
+            outtextxy(5,430, "Gherasim Antonie");
+            outtextxy(5,460, "Baltatescu Ana-Maria");
+            outtextxy(1100,400, "Profesor coordonator: ");
+            outtextxy(1100,430, "Lector Dr. Patrut Bogdan");
+            outtextxy(5,130," ");
+            return 1;
+        }
+        stanga=stanga+latura;
+        if (x>=stanga && x<=stanga+latura && y>=sus&&y<=sus+height) //FORMULA DE LA TASTATURA
+        {
+            setcolor(WHITE);
+            settextstyle(10,0,4);
+            outtextxy(5,110,"Introdu functia: ");
+            FormulaDeLaTastatura();
+
+
+            return 1;
+        }
+        stanga=stanga+latura;
+        if (x>=stanga && x<=stanga+latura && y>=sus&&y<=sus+height) //FORMULA DIN FISIER
+        {
+            strcpy(expr, "");
+            strcpy(expr_derivata, "");
+            delete arb;
+            delete arb_d;
+            int a, b;
+            for(a=1; a<=vec->nr; a++)
+                for(b=0; b<=5; b++)
+                    vec->info[a][b]=NULL;
+            vec->nr=0;
+            strcpy(aux, "");
+            while(f.getline(c,250))
+            {
+
+                strcat(expr,c);
+
+            }
+            cout<<expr<<" ";
+            setcolor(WHITE);
+            outtextxy(5,120,"f(x)=");
+            outtextxy(90,120,expr);
+            strcpy(aux, expr);
+            strcpy(expr, "(");
+            strcpy(expr + 1, aux);
+            strcat(expr, ")");
+            g<<"f(x)="<<expr;
+            g<<endl;
+            Vectorizeaza();
+            corecteaza();
+            if (paranteze() == 0 || operatori() == 0 || s_c() == 0 || punctuatie() == 0)
+            {
+                cout << "expresia introdusa este incorecta";
+                g<<"expresia introdusa este incorecta";
+                g<<endl;
+                outtextxy(5,240,"expresia introdusa este incorecta");
+            }
+            else
+            {
+                arborizeaza(arb);
+                Deriveaza(arb, arb_d);
+                simplifica(arb_d);
+                reducere(arb_d);
+                reducere_r(arb_d);
+                operatii_nr(arb_d);
+                simp(arb_d);
+                parcurgereInordine_f(arb_d);
+                cout << "Derivata functiei f(x) este:    " << expr_derivata << endl;
+                outtextxy(5, 200, "f'(x)= ");
+                g<<"f'(x)="<<expr_derivata;
+                g<<endl;
+                outtextxy(90,200, expr_derivata);
+            }
+            return 1;
+
+        }
+
+        stanga=0;
+        sus=sus+height;
+        if (x>=stanga && x<=stanga+latura && y>=sus&&y<=sus+height) //ARBORELE
+        {
+            int height = 300, width = 200;
+            initwindow(900, 1300);
+            setbkcolor(WHITE);
+            cleardevice();
+            int h=getmaxx()-800;
+            rectangle(1, 1, width - 1, height - 1);
+            int latime, inaltime;
+            latime = width / nrColoane(arb);
+            inaltime = height / nrNiveluri(arb);
+            deseneazaArbore(arb_d, 1, 35, latime, inaltime);
+            return 1;
+
+        }
+        stanga=stanga+latura;
+        if (x>=stanga && x<=stanga+latura && y>=sus&&y<=sus+height) //NOTATIILE DERIVATEI
+        {
+            parcurgerePostordine_f(arb_d);
+            parcurgerePreordine_f(arb_d);
+            setcolor(7);
+            settextstyle(10,0,4);
+            outtextxy(5,220,"INORDINE: ");
+            outtextxy(210,220, expr_derivata);
+            outtextxy(5,280, "PREORDINE: ");
+            outtextxy(210,280, expr_arbore2);
+            outtextxy(5,340, "POSTORDINE: ");
+            outtextxy(230,340, expr_arbore3);
+            g<<"INORDINE: "<<expr_derivata<<endl;
+            g<<"PREORDINE: "<<expr_arbore2<<endl;
+            g<<"POSTORDINE: "<<expr_arbore3<<endl;
+            return 1;
+
+        }
+        stanga=stanga+latura;
+        if (x>=stanga && x<=stanga+latura && y>=sus&&y<=sus+height) //DERIVATA DE GRAD SUPERIOR
+        {
+            strcpy(expr, expr_derivata);
+            setcolor(WHITE);
+            outtextxy(5,120,"f'(x)= ");
+            outtextxy(90,120,expr);
+            strcpy(expr_derivata, "");
+            delete arb, arb_d;
+            int a, b;
+            for(a=1; a<=vec->nr; a++)
+                for(b=0; b<=5; b++)
+                    vec->info[a][b]=NULL;
+            vec->nr=0;
+            strcpy(aux, "");
+            strcpy(aux, expr);
+            strcpy(expr, "(");
+            strcpy(expr + 1, aux);
+            strcat(expr, ")");
+            g<<"f'(x)="<<expr;
+            g<<endl;
+            Vectorizeaza();
+            corecteaza();
+            if (paranteze() == 0 || operatori() == 0 || s_c() == 0 || punctuatie() == 0)
+            {
+                cout << "expresia introdusa este incorecta";
+                g<<"expresia introdusa este incorecta";
+                g<<endl;
+                outtextxy(5,240,"expresia introdusa este incorecta");
+
+            }
+            else
+            {
+                arborizeaza(arb);
+                Deriveaza(arb, arb_d);
+                simplifica(arb_d);
+                reducere(arb_d);
+                reducere_r(arb_d);
+                operatii_nr(arb_d);
+                simp(arb_d);
+                parcurgereInordine_f(arb_d);
+                cout << "Derivata functiei f(x) este:    " << expr_derivata << endl;
+            }
+            outtextxy(5, 200, "g(x)= ");
+            outtextxy(100,200, expr_derivata);
+            g<<"g(x)= "<<expr_derivata<<endl;
+            g<<endl;
+
+
+        }
+    }
+
+
+    if(ok==0)
+        return 0;
+}
+int main()
+{
+
+    initwindow( 1500, 700, "DERIV", 30,50 );
+    desen();
+    nume();
+
+    while(butoane())
+    {
+        butoane();
+    }
+
+    closegraph();
+
+    return 0;
+}
